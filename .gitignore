@@ -1,0 +1,9 @@
+.clangd/
+.DS_Store
+.vscode/
+build/
+compile_commands.json
+untracked/
+subprojects/*
+!subprojects/*.wrap
+*.pem
