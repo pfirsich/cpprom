@@ -28,6 +28,14 @@ bool isDigit(char ch)
 {
     return ch >= '0' && ch <= '9';
 }
+
+template <typename Unit = std::chrono::seconds>
+double now()
+{
+    return std::chrono::duration_cast<std::chrono::duration<double, typename Unit::period>>(
+        std::chrono::high_resolution_clock::now().time_since_epoch())
+        .count();
+}
 }
 
 namespace cpprom {
@@ -63,6 +71,28 @@ const LabelValues& Counter::labelValues() const
     return labelValues_;
 }
 
+Gauge::TimeHandle::TimeHandle(Gauge& gauge)
+    : gauge(gauge)
+    , start(now())
+{
+}
+
+Gauge::TimeHandle::~TimeHandle()
+{
+    gauge.set(now() - start);
+}
+
+Gauge::TrackInProgressHandle::TrackInProgressHandle(Gauge& gauge)
+    : gauge(gauge)
+{
+    gauge.inc();
+}
+
+Gauge::TrackInProgressHandle::~TrackInProgressHandle()
+{
+    gauge.dec();
+}
+
 Gauge::Gauge(LabelValues labelValues)
     : labelValues_(std::move(labelValues))
 {
@@ -81,6 +111,21 @@ void Gauge::dec(double delta)
 void Gauge::set(double value)
 {
     value_.store(value);
+}
+
+void Gauge::setToCurrentTime()
+{
+    set(now());
+}
+
+Gauge::TimeHandle Gauge::time()
+{
+    return TimeHandle(*this);
+}
+
+Gauge::TrackInProgressHandle Gauge::trackInProgress()
+{
+    return TrackInProgressHandle(*this);
 }
 
 double Gauge::value() const
@@ -118,6 +163,17 @@ std::vector<double> Histogram::exponentialBuckets(double start, double factor, u
     return bounds;
 }
 
+Histogram::TimeHandle::TimeHandle(Histogram& histogram)
+    : histogram(histogram)
+    , start(now())
+{
+}
+
+Histogram::TimeHandle::~TimeHandle()
+{
+    histogram.observe(now() - start);
+}
+
 Histogram::Histogram(LabelValues labelValues, const std::vector<double>& bucketBounds)
     : labelValues_(std::move(labelValues))
     , buckets_(bucketBounds.size() + 1) // +1 for +Inf bucket
@@ -145,6 +201,11 @@ void Histogram::observe(double value)
         }
     }
     atomicAdd(sum_, value);
+}
+
+Histogram::TimeHandle Histogram::time()
+{
+    return Histogram::TimeHandle(*this);
 }
 
 const std::vector<Histogram::Bucket>& Histogram::buckets() const

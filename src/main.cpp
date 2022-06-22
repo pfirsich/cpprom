@@ -49,6 +49,8 @@ int main()
     auto& reqTotal = reg.counter("http_requests_total", { "endpoint" }, "Total number of requests");
     auto& steps = reg.counter("steps_count", "Number of steps");
     auto& load = reg.gauge("load", "The load of something of course");
+    auto& timeTaken = reg.gauge("time_taken", "The time a long loop has taken");
+    auto& inProgress = reg.gauge("in_progress", "Number of thingies in progress");
     auto& hist = reg.histogram("hist", cpprom::Histogram::defaultBuckets(),
         "A histogram to histogrammate things histogrammatically");
 
@@ -59,6 +61,17 @@ int main()
     hist.observe(8.0);
     hist.observe(69.0);
     hist.observe(42.0);
+
+    {
+        const auto h = timeTaken.time();
+        ::usleep(1000 * 69);
+    }
+
+    const auto h1 = inProgress.trackInProgress();
+    const auto h2 = inProgress.trackInProgress();
+    {
+        const auto h3 = inProgress.trackInProgress();
+    }
 
     reqTotal.label("/").inc();
     steps.inc();

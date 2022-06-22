@@ -14,6 +14,17 @@
 #endif
 
 namespace cpprom {
+namespace detail {
+    // Just to disable moving and copying
+    struct HandleBase {
+        HandleBase() = default;
+        HandleBase(const HandleBase&) = delete;
+        HandleBase(HandleBase&& other) = delete;
+        HandleBase& operator=(const HandleBase&) = delete;
+        HandleBase& operator=(HandleBase&&) = delete;
+    };
+}
+
 using LabelValues = std::vector<std::string>;
 
 class Counter {
@@ -35,8 +46,20 @@ private:
 
 class Gauge {
 public:
-    struct TimeHandle { };
-    struct TrackInProgressHandle { };
+    struct TimeHandle : public detail::HandleBase {
+        Gauge& gauge;
+        double start;
+
+        TimeHandle(Gauge& gauge);
+        ~TimeHandle();
+    };
+
+    struct TrackInProgressHandle : detail::HandleBase {
+        Gauge& gauge;
+
+        TrackInProgressHandle(Gauge& gauge);
+        ~TrackInProgressHandle();
+    };
 
     explicit Gauge(LabelValues labelValues);
 
@@ -70,7 +93,13 @@ public:
         std::atomic<uint64_t> count { 0 };
     };
 
-    struct TimeHandle { };
+    struct TimeHandle : public detail::HandleBase {
+        Histogram& histogram;
+        double start;
+
+        TimeHandle(Histogram& histogram);
+        ~TimeHandle();
+    };
 
     Histogram(LabelValues labelValues, const std::vector<double>& bucketBounds);
 
