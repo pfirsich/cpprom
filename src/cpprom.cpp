@@ -50,7 +50,7 @@ namespace {
     }
 }
 
-Counter::Counter(LabelValues labelValues)
+Counter::Counter(LabelValues labelValues, const Counter::Descriptor&)
     : labelValues_(std::move(labelValues))
 {
 }
@@ -93,7 +93,7 @@ Gauge::TrackInProgressHandle::~TrackInProgressHandle()
     gauge.dec();
 }
 
-Gauge::Gauge(LabelValues labelValues)
+Gauge::Gauge(LabelValues labelValues, const Gauge::Descriptor&)
     : labelValues_(std::move(labelValues))
 {
 }
@@ -174,16 +174,16 @@ Histogram::TimeHandle::~TimeHandle()
     histogram.observe(now() - start);
 }
 
-Histogram::Histogram(LabelValues labelValues, const std::vector<double>& bucketBounds)
+Histogram::Histogram(LabelValues labelValues, const Histogram::Descriptor& descriptor)
     : labelValues_(std::move(labelValues))
-    , buckets_(bucketBounds.size() + 1) // +1 for +Inf bucket
+    , buckets_(descriptor.bucketBounds.size() + 1) // +1 for +Inf bucket
 {
     assert(buckets_.size() > 1);
     // This code could be much clearer/simpler if I could use buckets_.push_back, but sadly that
     // requires that Bucket is movable, which it is not, because of std::atomic. Therefore I
     // need to specify the size in the constructor already.
     size_t i = 0;
-    for (const auto& boundary : bucketBounds) {
+    for (const auto& boundary : descriptor.bucketBounds) {
         buckets_[i].upperBound = static_cast<double>(boundary);
         if (i > 0) {
             assert(buckets_[i - 1].upperBound < static_cast<double>(boundary));
@@ -340,12 +340,6 @@ namespace {
 }
 
 template <>
-std::unique_ptr<Counter> MetricFamily<Counter>::newMetric(const LabelValues& labelValues)
-{
-    return std::make_unique<Counter>(labelValues);
-}
-
-template <>
 std::string MetricFamily<Counter>::serialize() const
 {
     std::string str = prefixComment(name_, help_, "counter");
@@ -360,12 +354,6 @@ std::string MetricFamily<Counter>::serialize() const
 }
 
 template <>
-std::unique_ptr<Gauge> MetricFamily<Gauge>::newMetric(const LabelValues& labelValues)
-{
-    return std::make_unique<Gauge>(labelValues);
-}
-
-template <>
 std::string MetricFamily<Gauge>::serialize() const
 {
     std::string str = prefixComment(name_, help_, "gauge");
@@ -377,12 +365,6 @@ std::string MetricFamily<Gauge>::serialize() const
         str.append("\n\n");
     }
     return str;
-}
-
-template <>
-std::unique_ptr<Histogram> MetricFamily<Histogram>::newMetric(const LabelValues& labelValues)
-{
-    return std::make_unique<Histogram>(labelValues, extraData_.bucketBounds);
 }
 
 template <>
@@ -442,16 +424,14 @@ MetricFamily<Histogram>& Registry::histogram(std::string name, std::vector<std::
     std::vector<double> bucketBounds, std::string help)
 {
     assert(std::find(labelNames.begin(), labelNames.end(), "le") == labelNames.end());
-    return addFamily<Histogram>(
-        std::move(name), std::move(labelNames), std::move(bucketBounds), std::move(help));
+    return addFamily<Histogram>(std::move(name), std::move(labelNames), std::move(help),
+        Histogram::Descriptor { std::move(bucketBounds) });
 }
 
 Histogram& Registry::histogram(std::string name, std::vector<double> bucketBounds, std::string help)
 {
     return histogram(std::move(name), {}, std::move(bucketBounds), std::move(help)).label({});
 }
-
-// void remove(const std::string& name);
 
 std::string Registry::serialize() const
 {

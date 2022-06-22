@@ -31,7 +31,7 @@ class Counter {
 public:
     struct Descriptor { };
 
-    explicit Counter(LabelValues labelValues);
+    Counter(LabelValues labelValues, const Descriptor& Descriptor);
 
     void inc(double delta = 1.0);
 
@@ -46,6 +46,8 @@ private:
 
 class Gauge {
 public:
+    struct Descriptor { };
+
     struct TimeHandle : public detail::HandleBase {
         Gauge& gauge;
         double start;
@@ -61,7 +63,7 @@ public:
         ~TrackInProgressHandle();
     };
 
-    explicit Gauge(LabelValues labelValues);
+    Gauge(LabelValues labelValues, const Descriptor& Descriptor);
 
     void inc(double delta = 1.0);
 
@@ -88,6 +90,10 @@ public:
     static std::vector<double> linearBuckets(double start, double width, uint64_t count);
     static std::vector<double> exponentialBuckets(double start, double factor, uint64_t count);
 
+    struct Descriptor {
+        std::vector<double> bucketBounds;
+    };
+
     struct Bucket {
         double upperBound;
         std::atomic<uint64_t> count { 0 };
@@ -101,7 +107,7 @@ public:
         ~TimeHandle();
     };
 
-    Histogram(LabelValues labelValues, const std::vector<double>& bucketBounds);
+    Histogram(LabelValues labelValues, const Descriptor& Descriptor);
 
     void observe(double value);
 
@@ -137,35 +143,20 @@ namespace detail {
     };
 }
 
-template <typename T>
-struct MetricFamilyExtraData {
-};
-
-template <>
-struct MetricFamilyExtraData<Histogram> {
-    std::vector<double> bucketBounds;
-};
-
 template <typename Metric>
 class MetricFamily : public detail::MetricFamilyBase {
 public:
-    MetricFamily(std::string name, std::vector<std::string> labelNames, std::string help)
+    MetricFamily(std::string name, std::vector<std::string> labelNames, std::string help,
+        typename Metric::Descriptor descriptor = {})
         : name_(std::move(name))
         , help_(std::move(help))
         , labelNames_(std::move(labelNames))
+        , descriptor_(std::move(descriptor))
     {
         assert(detail::isValidMetricName(name_));
         for (const auto& labelName : labelNames_) {
             assert(detail::isValidLabelName(labelName));
         }
-    }
-
-    template <typename = std::enable_if<std::is_same_v<Metric, Histogram>>>
-    MetricFamily(std::string name, std::vector<std::string> labelNames,
-        std::vector<double> bucketBounds, std::string help)
-        : MetricFamily(std::move(name), std::move(labelNames), std::move(help))
-    {
-        extraData_ = MetricFamilyExtraData<Histogram> { std::move(bucketBounds) };
     }
 
     template <typename... Args>
@@ -179,7 +170,8 @@ public:
     {
         auto it = metrics_.find(labelValues);
         if (it == metrics_.end()) {
-            it = metrics_.emplace(labelValues, newMetric(labelValues)).first;
+            it = metrics_.emplace(labelValues, std::make_unique<Metric>(labelValues, descriptor_))
+                     .first;
         }
         return *it->second;
     }
@@ -196,23 +188,14 @@ private:
     std::string help_;
     std::vector<std::string> labelNames_;
     std::unordered_map<LabelValues, std::unique_ptr<Metric>, detail::LabelValuesHash> metrics_;
-    MetricFamilyExtraData<Metric> extraData_;
+    typename Metric::Descriptor descriptor_;
 };
-
-template <>
-std::unique_ptr<Counter> MetricFamily<Counter>::newMetric(const LabelValues& labelValues);
 
 template <>
 std::string MetricFamily<Counter>::serialize() const;
 
 template <>
-std::unique_ptr<Gauge> MetricFamily<Gauge>::newMetric(const LabelValues& labelValues);
-
-template <>
 std::string MetricFamily<Gauge>::serialize() const;
-
-template <>
-std::unique_ptr<Histogram> MetricFamily<Histogram>::newMetric(const LabelValues& labelValues);
 
 template <>
 std::string MetricFamily<Histogram>::serialize() const;
