@@ -1,3 +1,4 @@
+#include <functional>
 #include <iostream>
 
 #include "cpprom.hpp"
@@ -61,6 +62,8 @@ int main()
 
     reqTotal.label("/").inc();
     steps.inc();
+
+    std::cout << reg.serialize() << std::endl;
 
     serve(10069, [&]() {
         const auto data = reg.serialize();
