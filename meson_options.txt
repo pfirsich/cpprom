@@ -1,0 +1,6 @@
+option(
+  'single_threaded',
+  type : 'boolean',
+  value : false,
+  description : 'Whether to compile cpprom without synchronization primitives. Just defines CPPROM_SINGLE_THREADED.',
+  yield : true)

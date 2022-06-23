@@ -371,6 +371,7 @@ std::vector<Collector::Family> MetricFamily<Histogram>::collect() const
     }
 
     std::vector<Collector::Sample> samples;
+    std::lock_guard g(mutex_);
     for (const auto& [labelValues, metric] : metrics_) {
         auto bucketLabelNames = labelNames_;
         bucketLabelNames.push_back("le");
@@ -428,7 +429,7 @@ MetricFamily<Counter>& Registry::counter(
     std::string name, std::vector<std::string> labelNames, std::string help)
 {
     auto f = makeCounter(std::move(name), std::move(labelNames), std::move(help));
-    collectors_.push_back(f);
+    registerCollector(f);
     return *f;
 }
 
@@ -441,7 +442,7 @@ MetricFamily<Gauge>& Registry::gauge(
     std::string name, std::vector<std::string> labelNames, std::string help)
 {
     auto f = makeGauge(std::move(name), std::move(labelNames), std::move(help));
-    collectors_.push_back(f);
+    registerCollector(f);
     return *f;
 }
 
@@ -455,7 +456,7 @@ MetricFamily<Histogram>& Registry::histogram(std::string name, std::vector<std::
 {
     auto f = makeHistogram(
         std::move(name), std::move(labelNames), std::move(bucketBounds), std::move(help));
-    collectors_.push_back(f);
+    registerCollector(f);
     return *f;
 }
 
@@ -466,6 +467,7 @@ Histogram& Registry::histogram(std::string name, std::vector<double> bucketBound
 
 Registry& Registry::registerCollector(std::shared_ptr<Collector> collector)
 {
+    std::lock_guard g(mutex_);
     assert(std::find(collectors_.begin(), collectors_.end(), collector) == collectors_.end());
     collectors_.push_back(collector);
     return *this;
@@ -474,6 +476,7 @@ Registry& Registry::registerCollector(std::shared_ptr<Collector> collector)
 std::string Registry::serialize() const
 {
     std::string str;
+    std::lock_guard g(mutex_);
     for (const auto& collector : collectors_) {
         str.append(cpprom::serialize(collector->collect()));
     }

@@ -5,6 +5,10 @@ if host_machine.system() == 'linux'
   src += 'src/processmetrics.cpp'
 endif
 
+if get_option('single_threaded')
+  add_global_arguments('-DCPPROM_SINGLE_THREADED', language : 'cpp')
+endif
+
 cpprom_inc = include_directories('include')
 cpprom_lib = library('cpprom', src, include_directories : cpprom_inc)
 cpprom_dep = declare_dependency(link_with : cpprom_lib, include_directories : cpprom_inc)

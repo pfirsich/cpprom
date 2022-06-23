@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cassert>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -11,8 +12,7 @@
 #ifdef CPPROM_SINGLE_THREADED
 #define CPPROM_MUTEX NullMutex
 #else
-#include <mutex>
-#define CPPROM_MUTEX std::mutex;
+#define CPPROM_MUTEX std::mutex
 #endif
 
 namespace cpprom {
@@ -181,6 +181,7 @@ public:
     template <typename... Args>
     Metric& labels(Args&&... args)
     {
+        std::lock_guard g(mutex_);
         std::vector<std::string> labelValues { static_cast<std::string>(
             std::forward<Args>(args))... };
         auto it = metrics_.find(labelValues);
@@ -195,8 +196,9 @@ public:
     // TODO: void remove(const LabelValues&);
     // TODO: void clear();
 
+    const auto& name() const { return name_; }
+    const auto& help() const { return help_; }
     const auto& labelNames() const { return labelNames_; }
-    const auto& metrics() const { return metrics_; }
 
     std::vector<Family> collect() const override;
 
@@ -205,7 +207,9 @@ private:
     std::string help_;
     std::vector<std::string> labelNames_;
     typename Metric::Descriptor descriptor_;
+
     std::unordered_map<LabelValues, std::unique_ptr<Metric>, detail::LabelValuesHash> metrics_;
+    mutable CPPROM_MUTEX mutex_;
 };
 
 template <>
@@ -257,5 +261,6 @@ public:
 
 private:
     std::vector<std::shared_ptr<Collector>> collectors_;
+    mutable CPPROM_MUTEX mutex_;
 };
 }
