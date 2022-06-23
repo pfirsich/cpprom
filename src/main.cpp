@@ -73,7 +73,7 @@ int main()
         const auto h3 = inProgress.trackInProgress();
     }
 
-    reqTotal.label("/").inc();
+    reqTotal.labels("/").inc();
     steps.inc();
 
     std::cout << reg.serialize() << std::endl;

@@ -366,6 +366,10 @@ std::vector<Collector::Family> MetricFamily<Gauge>::collect() const
 template <>
 std::vector<Collector::Family> MetricFamily<Histogram>::collect() const
 {
+    for (const auto& labelName : labelNames_) {
+        assert(labelName != "le");
+    }
+
     std::vector<Collector::Sample> samples;
     for (const auto& [labelValues, metric] : metrics_) {
         auto bucketLabelNames = labelNames_;
@@ -401,7 +405,7 @@ MetricFamily<Counter>& Registry::counter(
 
 Counter& Registry::counter(std::string name, std::string help)
 {
-    return counter(std::move(name), {}, std::move(help)).label({});
+    return counter(std::move(name), {}, std::move(help)).labels({});
 }
 
 MetricFamily<Gauge>& Registry::gauge(
@@ -412,7 +416,7 @@ MetricFamily<Gauge>& Registry::gauge(
 
 Gauge& Registry::gauge(std::string name, std::string help)
 {
-    return gauge(std::move(name), {}, std::move(help)).label({});
+    return gauge(std::move(name), {}, std::move(help)).labels({});
 }
 
 MetricFamily<Histogram>& Registry::histogram(std::string name, std::vector<std::string> labelNames,
@@ -425,7 +429,7 @@ MetricFamily<Histogram>& Registry::histogram(std::string name, std::vector<std::
 
 Histogram& Registry::histogram(std::string name, std::vector<double> bucketBounds, std::string help)
 {
-    return histogram(std::move(name), {}, std::move(bucketBounds), std::move(help)).label({});
+    return histogram(std::move(name), {}, std::move(bucketBounds), std::move(help)).labels({});
 }
 
 std::string Registry::serialize() const

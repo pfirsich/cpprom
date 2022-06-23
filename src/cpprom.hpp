@@ -177,13 +177,13 @@ public:
     }
 
     template <typename... Args>
-    std::enable_if_t<(std::is_convertible_v<Args, std::string> && ...), Metric&> label(
+    std::enable_if_t<(std::is_convertible_v<Args, std::string> && ...), Metric&> labels(
         Args&&... args)
     {
-        return label(std::vector<std::string> { std::forward<Args>(args)... });
+        return labels(std::vector<std::string> { std::forward<Args>(args)... });
     }
 
-    Metric& label(const LabelValues& labelValues)
+    Metric& labels(const LabelValues& labelValues)
     {
         auto it = metrics_.find(labelValues);
         if (it == metrics_.end()) {
@@ -192,6 +192,10 @@ public:
         }
         return *it->second;
     }
+
+    // https://prometheus.io/docs/instrumenting/writing_clientlibs/#labels
+    // TODO: void remove(const LabelValues&);
+    // TODO: void clear();
 
     const auto& labelNames() const { return labelNames_; }
     const auto& metrics() const { return metrics_; }
