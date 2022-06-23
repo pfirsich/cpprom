@@ -1,3 +1,5 @@
+#pragma once
+
 #include <atomic>
 #include <cassert>
 #include <memory>
@@ -219,9 +221,21 @@ std::vector<Collector::Family> MetricFamily<Gauge>::collect() const;
 template <>
 std::vector<Collector::Family> MetricFamily<Histogram>::collect() const;
 
+std::shared_ptr<MetricFamily<Counter>> makeCounter(
+    std::string name, std::vector<std::string> labelNames, std::string help);
+
+std::shared_ptr<MetricFamily<Gauge>> makeGauge(
+    std::string name, std::vector<std::string> labelNames, std::string help);
+
+std::shared_ptr<MetricFamily<Histogram>> makeHistogram(std::string name,
+    std::vector<std::string> labelNames, std::vector<double> bucketBounds, std::string help);
+
 class Registry {
 public:
-    Registry(bool /*addDefaultCollectors*/ = true) { }
+    Registry() = default;
+    ~Registry() = default;
+    Registry(const Registry&) = default;
+    Registry(Registry&&) = default;
 
     MetricFamily<Counter>& counter(
         std::string name, std::vector<std::string> labelNames, std::string help);
@@ -238,32 +252,11 @@ public:
 
     Histogram& histogram(std::string name, std::vector<double> bucketBounds, std::string help);
 
-    void addCollector(std::unique_ptr<Collector> collector);
+    void registerCollector(std::shared_ptr<Collector> collector);
 
     std::string serialize() const;
 
 private:
-    // TODO: Figure out what to do with the name. Maybe don't save it at all and turn unordered_map
-    // into list?
-    // When do I have to check for duplicate names? Check docs.
-    template <typename Metric, typename... Args>
-    MetricFamily<Metric>& addFamily(std::string name, Args&&... args)
-    {
-        const auto it = collectors_.find(name);
-        assert(it == collectors_.end());
-        std::string key = name;
-        auto family
-            = std::make_unique<MetricFamily<Metric>>(std::move(name), std::forward<Args>(args)...);
-        auto& ref = *family;
-        collectors_.emplace(std::move(key), std::move(family));
-        return ref;
-    }
-
-    // I need to give out stable references, so I need a container with pointers that don't
-    // invalidate after insertion / deletion. If I use a std::list, a linear search is not quite
-    // as free as it would be with a vector, so std::map is actually not a bad choice. errors
-    // with fucking map -> unordered of unique_ptr
-    std::unordered_map<std::string, std::unique_ptr<Collector>> collectors_;
+    std::vector<std::shared_ptr<Collector>> collectors_;
 };
-
 }

@@ -1,6 +1,5 @@
 #include "cpprom.hpp"
 
-#include <algorithm>
 #include <charconv>
 
 namespace {
@@ -397,10 +396,33 @@ std::vector<Collector::Family> MetricFamily<Histogram>::collect() const
     };
 }
 
+std::shared_ptr<MetricFamily<Counter>> makeCounter(
+    std::string name, std::vector<std::string> labelNames, std::string help)
+{
+    return std::make_shared<MetricFamily<Counter>>(
+        std::move(name), std::move(labelNames), std::move(help));
+}
+
+std::shared_ptr<MetricFamily<Gauge>> makeGauge(
+    std::string name, std::vector<std::string> labelNames, std::string help)
+{
+    return std::make_shared<MetricFamily<Gauge>>(
+        std::move(name), std::move(labelNames), std::move(help));
+}
+
+std::shared_ptr<MetricFamily<Histogram>> makeHistogram(std::string name,
+    std::vector<std::string> labelNames, std::vector<double> bucketBounds, std::string help)
+{
+    return std::make_shared<MetricFamily<Histogram>>(std::move(name), std::move(labelNames),
+        std::move(help), Histogram::Descriptor { std::move(bucketBounds) });
+}
+
 MetricFamily<Counter>& Registry::counter(
     std::string name, std::vector<std::string> labelNames, std::string help)
 {
-    return addFamily<Counter>(std::move(name), std::move(labelNames), std::move(help));
+    auto f = makeCounter(std::move(name), std::move(labelNames), std::move(help));
+    collectors_.push_back(f);
+    return *f;
 }
 
 Counter& Registry::counter(std::string name, std::string help)
@@ -411,7 +433,9 @@ Counter& Registry::counter(std::string name, std::string help)
 MetricFamily<Gauge>& Registry::gauge(
     std::string name, std::vector<std::string> labelNames, std::string help)
 {
-    return addFamily<Gauge>(std::move(name), std::move(labelNames), std::move(help));
+    auto f = makeGauge(std::move(name), std::move(labelNames), std::move(help));
+    collectors_.push_back(f);
+    return *f;
 }
 
 Gauge& Registry::gauge(std::string name, std::string help)
@@ -422,9 +446,10 @@ Gauge& Registry::gauge(std::string name, std::string help)
 MetricFamily<Histogram>& Registry::histogram(std::string name, std::vector<std::string> labelNames,
     std::vector<double> bucketBounds, std::string help)
 {
-    assert(std::find(labelNames.begin(), labelNames.end(), "le") == labelNames.end());
-    return addFamily<Histogram>(std::move(name), std::move(labelNames), std::move(help),
-        Histogram::Descriptor { std::move(bucketBounds) });
+    auto f = makeHistogram(
+        std::move(name), std::move(labelNames), std::move(bucketBounds), std::move(help));
+    collectors_.push_back(f);
+    return *f;
 }
 
 Histogram& Registry::histogram(std::string name, std::vector<double> bucketBounds, std::string help)
@@ -432,10 +457,15 @@ Histogram& Registry::histogram(std::string name, std::vector<double> bucketBound
     return histogram(std::move(name), {}, std::move(bucketBounds), std::move(help)).labels({});
 }
 
+void Registry::registerCollector(std::shared_ptr<Collector> collector)
+{
+    collectors_.push_back(collector);
+}
+
 std::string Registry::serialize() const
 {
     std::string str;
-    for (const auto& [name, collector] : collectors_) {
+    for (const auto& collector : collectors_) {
         str.append(cpprom::serialize(collector->collect()));
     }
     return str;
