@@ -1,7 +1,8 @@
 #include <functional>
 #include <iostream>
 
-#include "cpprom.hpp"
+#include <cpprom/cpprom.hpp>
+#include <cpprom/processmetrics.hpp>
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -46,7 +47,9 @@ bool serve(uint16_t port, std::function<std::string()> handler)
 int main()
 {
     cpprom::Registry reg;
-    auto& reqTotal = reg.counter("http_requests_total", { "endpoint" }, "Total number of requests");
+    reg.registerCollector(cpprom::makeProcessMetricsCollector());
+    auto& reqTotal
+        = reg.counter("http_requests_total", { "endpoint", "status" }, "Total number of requests");
     auto& steps = reg.counter("steps_count", "Number of steps");
     auto& load = reg.gauge("load", "The load of something of course");
     auto& timeTaken = reg.gauge("time_taken", "The time a long loop has taken");
@@ -73,7 +76,7 @@ int main()
         const auto h3 = inProgress.trackInProgress();
     }
 
-    reqTotal.labels("/").inc();
+    reqTotal.labels("/", "200").inc();
     steps.inc();
 
     std::cout << reg.serialize() << std::endl;
