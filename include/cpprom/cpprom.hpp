@@ -228,6 +228,9 @@ std::shared_ptr<MetricFamily<Histogram>> makeHistogram(std::string name,
 
 class Registry {
 public:
+    // The docs tell me I should provide this
+    static Registry& getDefault();
+
     Registry() = default;
     ~Registry() = default;
     Registry(const Registry&) = default;

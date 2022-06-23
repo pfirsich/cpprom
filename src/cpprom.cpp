@@ -417,6 +417,12 @@ std::shared_ptr<MetricFamily<Histogram>> makeHistogram(std::string name,
         std::move(help), Histogram::Descriptor { std::move(bucketBounds) });
 }
 
+Registry& Registry::getDefault()
+{
+    static Registry reg;
+    return reg;
+}
+
 MetricFamily<Counter>& Registry::counter(
     std::string name, std::vector<std::string> labelNames, std::string help)
 {
