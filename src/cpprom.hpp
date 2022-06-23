@@ -136,15 +136,32 @@ namespace detail {
     struct LabelValuesHash {
         size_t operator()(const LabelValues& labelValues) const;
     };
-
-    struct MetricFamilyBase {
-        virtual ~MetricFamilyBase() = default;
-        virtual std::string serialize() const = 0;
-    };
 }
 
+class Collector {
+public:
+    struct Sample {
+        std::string name;
+        double value;
+        std::vector<std::string> labelNames = {};
+        LabelValues labelValues = {};
+    };
+
+    struct Family {
+        std::string name;
+        std::string help;
+        std::string type;
+        std::vector<Sample> samples;
+    };
+
+    virtual ~Collector() = default;
+    virtual std::vector<Family> collect() const = 0;
+};
+
+std::string serialize(const std::vector<Collector::Family>& families);
+
 template <typename Metric>
-class MetricFamily : public detail::MetricFamilyBase {
+class MetricFamily : public Collector {
 public:
     MetricFamily(std::string name, std::vector<std::string> labelNames, std::string help,
         typename Metric::Descriptor descriptor = {})
@@ -179,26 +196,24 @@ public:
     const auto& labelNames() const { return labelNames_; }
     const auto& metrics() const { return metrics_; }
 
-    std::string serialize() const override;
+    std::vector<Family> collect() const override;
 
 private:
-    std::unique_ptr<Metric> newMetric(const LabelValues& labelValues);
-
     std::string name_;
     std::string help_;
     std::vector<std::string> labelNames_;
-    std::unordered_map<LabelValues, std::unique_ptr<Metric>, detail::LabelValuesHash> metrics_;
     typename Metric::Descriptor descriptor_;
+    std::unordered_map<LabelValues, std::unique_ptr<Metric>, detail::LabelValuesHash> metrics_;
 };
 
 template <>
-std::string MetricFamily<Counter>::serialize() const;
+std::vector<Collector::Family> MetricFamily<Counter>::collect() const;
 
 template <>
-std::string MetricFamily<Gauge>::serialize() const;
+std::vector<Collector::Family> MetricFamily<Gauge>::collect() const;
 
 template <>
-std::string MetricFamily<Histogram>::serialize() const;
+std::vector<Collector::Family> MetricFamily<Histogram>::collect() const;
 
 class Registry {
 public:
@@ -219,19 +234,24 @@ public:
 
     Histogram& histogram(std::string name, std::vector<double> bucketBounds, std::string help);
 
+    void addCollector(std::unique_ptr<Collector> collector);
+
     std::string serialize() const;
 
 private:
+    // TODO: Figure out what to do with the name. Maybe don't save it at all and turn unordered_map
+    // into list?
+    // When do I have to check for duplicate names? Check docs.
     template <typename Metric, typename... Args>
     MetricFamily<Metric>& addFamily(std::string name, Args&&... args)
     {
-        const auto it = families_.find(name);
-        assert(it == families_.end());
+        const auto it = collectors_.find(name);
+        assert(it == collectors_.end());
         std::string key = name;
         auto family
             = std::make_unique<MetricFamily<Metric>>(std::move(name), std::forward<Args>(args)...);
         auto& ref = *family;
-        families_.emplace(std::move(key), std::move(family));
+        collectors_.emplace(std::move(key), std::move(family));
         return ref;
     }
 
@@ -239,7 +259,7 @@ private:
     // invalidate after insertion / deletion. If I use a std::list, a linear search is not quite
     // as free as it would be with a vector, so std::map is actually not a bad choice. errors
     // with fucking map -> unordered of unique_ptr
-    std::unordered_map<std::string, std::unique_ptr<detail::MetricFamilyBase>> families_;
+    std::unordered_map<std::string, std::unique_ptr<Collector>> collectors_;
 };
 
 }

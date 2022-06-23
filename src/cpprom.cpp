@@ -278,124 +278,119 @@ namespace detail {
 }
 
 namespace {
-    std::string prefixComment(std::string_view name, std::string_view help, std::string_view type)
-    {
-        std::string str;
-        if (help.size() > 0) {
-            str.append("# HELP ");
-            str.append(name);
-            str.append(" ");
-            str.append(help);
-            str.append("\n");
-        }
-        str.append("# TYPE ");
-        str.append(name);
-        str.append(" ");
-        str.append(type);
-        str.append("\n");
-        return str;
-    }
-
-    std::string serializeLabels(const std::vector<std::string>& names, const LabelValues& values,
-        const std::string& le = "")
-    {
-        std::string str;
-        assert(names.size() == values.size());
-        if (values.size() > 0 || !le.empty()) {
-            str.append("{");
-            for (size_t i = 0; i < names.size(); ++i) {
-                if (i > 0) {
-                    str.append(",");
-                }
-                str.append(names[i]);
-                str.append("=\"");
-                str.append(values[i]);
-                str.append("\"");
-            }
-            if (!le.empty()) {
-                str.append("le=\"");
-                str.append(le);
-                str.append("\"");
-            }
-            str.append("}");
-        }
-        return str;
-    }
-
     std::string toString(double num)
     {
+        if (num == std::numeric_limits<double>::infinity()) {
+            return "+Inf";
+        }
+
         char buf[32]; // 15 significant digits plus decimal point
         const auto res = std::to_chars(buf, buf + sizeof(buf), num, std::chars_format::fixed);
         assert(res.ec == std::errc());
         return std::string(static_cast<const char*>(buf), const_cast<const char*>(res.ptr));
     }
-
-    std::string toString(uint64_t num)
-    {
-        char buf[32]; // 20 digits is actually enough
-        const auto res = std::to_chars(buf, buf + sizeof(buf), num);
-        assert(res.ec == std::errc());
-        return std::string(static_cast<const char*>(buf), const_cast<const char*>(res.ptr));
-    }
 }
 
-template <>
-std::string MetricFamily<Counter>::serialize() const
+std::string serialize(const std::vector<Collector::Family>& families)
 {
-    std::string str = prefixComment(name_, help_, "counter");
-    for (const auto& [labels, metric] : metrics_) {
-        str.append(name_);
-        str.append(serializeLabels(labelNames_, labels));
-        str.append(" ");
-        str.append(toString(metric->value()));
-        str.append("\n\n");
-    }
-    return str;
-}
-
-template <>
-std::string MetricFamily<Gauge>::serialize() const
-{
-    std::string str = prefixComment(name_, help_, "gauge");
-    for (const auto& [labels, metric] : metrics_) {
-        str.append(name_);
-        str.append(serializeLabels(labelNames_, labels));
-        str.append(" ");
-        str.append(toString(metric->value()));
-        str.append("\n\n");
-    }
-    return str;
-}
-
-template <>
-std::string MetricFamily<Histogram>::serialize() const
-{
-    std::string str = prefixComment(name_, help_, "histogram");
-    for (const auto& [labels, metric] : metrics_) {
-        for (const auto& bucket : metric->buckets()) {
-            str.append(name_);
-            str.append("_bucket");
-            str.append(serializeLabels(labelNames_, labels, toString(bucket.upperBound)));
+    std::string str;
+    str.reserve(4096);
+    for (const auto& family : families) {
+        if (family.help.size() > 0) {
+            str.append("# HELP ");
+            str.append(family.name);
             str.append(" ");
-            str.append(toString(bucket.count.load()));
+            str.append(family.help);
             str.append("\n");
         }
-
-        str.append(name_);
-        str.append("_sum");
-        str.append(serializeLabels(labelNames_, labels));
+        str.append("# TYPE ");
+        str.append(family.name);
         str.append(" ");
-        str.append(toString(metric->sum()));
+        str.append(family.type);
         str.append("\n");
 
-        str.append(name_);
-        str.append("_count");
-        str.append(serializeLabels(labelNames_, labels));
-        str.append(" ");
-        str.append(toString(metric->buckets().back().count.load()));
-        str.append("\n\n");
+        for (const auto& sample : family.samples) {
+            str.append(sample.name);
+
+            assert(sample.labelNames.size() == sample.labelValues.size());
+            if (sample.labelValues.size() > 0) {
+                str.append("{");
+                for (size_t i = 0; i < sample.labelValues.size(); ++i) {
+                    if (i > 0) {
+                        str.append(",");
+                    }
+                    str.append(sample.labelNames[i]);
+                    str.append("=\"");
+                    // TODO: Worry about escaping this string
+                    str.append(sample.labelValues[i]);
+                    str.append("\"");
+                }
+                str.append("}");
+            }
+
+            str.append(" ");
+            str.append(toString(sample.value));
+            str.append("\n");
+        }
+        str.append("\n");
     }
     return str;
+}
+
+template <>
+std::vector<Collector::Family> MetricFamily<Counter>::collect() const
+{
+    std::vector<Collector::Sample> samples;
+    for (const auto& [labelValues, metric] : metrics_) {
+        samples.push_back(Collector::Sample { name_, metric->value(), labelNames_, labelValues });
+    }
+
+    return std::vector<Collector::Family> {
+        Collector::Family { name_, help_, "counter", std::move(samples) },
+    };
+}
+
+template <>
+std::vector<Collector::Family> MetricFamily<Gauge>::collect() const
+{
+    std::vector<Collector::Sample> samples;
+    for (const auto& [labelValues, metric] : metrics_) {
+        samples.push_back(Collector::Sample { name_, metric->value(), labelNames_, labelValues });
+    }
+
+    return std::vector<Collector::Family> {
+        Collector::Family { name_, help_, "gauge", std::move(samples) },
+    };
+}
+
+template <>
+std::vector<Collector::Family> MetricFamily<Histogram>::collect() const
+{
+    std::vector<Collector::Sample> samples;
+    for (const auto& [labelValues, metric] : metrics_) {
+        auto bucketLabelNames = labelNames_;
+        bucketLabelNames.push_back("le");
+
+        auto bucketLabelValues = labelValues;
+        bucketLabelValues.push_back("");
+
+        const auto bucketName = name_ + "_bucket";
+        for (const auto& bucket : metric->buckets()) {
+            bucketLabelValues.back() = toString(bucket.upperBound);
+            samples.push_back(Collector::Sample { bucketName,
+                static_cast<double>(bucket.count.load()), bucketLabelNames, bucketLabelValues });
+        }
+
+        samples.push_back(
+            Collector::Sample { name_ + "_sum", metric->sum(), labelNames_, labelValues });
+
+        samples.push_back(Collector::Sample { name_ + "_count",
+            static_cast<double>(metric->buckets().back().count.load()), labelNames_, labelValues });
+    }
+
+    return std::vector<Collector::Family> {
+        Collector::Family { name_, help_, "histogram", std::move(samples) },
+    };
 }
 
 MetricFamily<Counter>& Registry::counter(
@@ -436,10 +431,9 @@ Histogram& Registry::histogram(std::string name, std::vector<double> bucketBound
 std::string Registry::serialize() const
 {
     std::string str;
-    for (const auto& [name, family] : families_) {
-        str.append(family->serialize());
+    for (const auto& [name, collector] : collectors_) {
+        str.append(cpprom::serialize(collector->collect()));
     }
     return str;
 }
-
 }
