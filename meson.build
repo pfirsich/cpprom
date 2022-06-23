@@ -9,4 +9,9 @@ cpprom_inc = include_directories('include')
 cpprom_lib = library('cpprom', src, include_directories : cpprom_inc)
 cpprom_dep = declare_dependency(link_with : cpprom_lib, include_directories : cpprom_inc)
 
-executable('server', 'src/main.cpp', dependencies : cpprom_dep)
+executable('overview', 'examples/overview.cpp', dependencies : cpprom_dep)
+executable('helpers', 'examples/helpers.cpp', dependencies : cpprom_dep)
+
+if host_machine.system() == 'linux'
+  executable('server', 'examples/server.cpp', dependencies : cpprom_dep)
+endif
