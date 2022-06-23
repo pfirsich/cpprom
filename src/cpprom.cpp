@@ -1,5 +1,6 @@
 #include "cpprom/cpprom.hpp"
 
+#include <algorithm>
 #include <charconv>
 
 namespace {
@@ -463,9 +464,11 @@ Histogram& Registry::histogram(std::string name, std::vector<double> bucketBound
     return histogram(std::move(name), {}, std::move(bucketBounds), std::move(help)).labels();
 }
 
-void Registry::registerCollector(std::shared_ptr<Collector> collector)
+Registry& Registry::registerCollector(std::shared_ptr<Collector> collector)
 {
+    assert(std::find(collectors_.begin(), collectors_.end(), collector) == collectors_.end());
     collectors_.push_back(collector);
+    return *this;
 }
 
 std::string Registry::serialize() const

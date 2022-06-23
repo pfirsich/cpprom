@@ -251,7 +251,7 @@ public:
 
     Histogram& histogram(std::string name, std::vector<double> bucketBounds, std::string help);
 
-    void registerCollector(std::shared_ptr<Collector> collector);
+    Registry& registerCollector(std::shared_ptr<Collector> collector);
 
     std::string serialize() const;
 
