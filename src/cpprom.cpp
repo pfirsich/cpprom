@@ -427,7 +427,7 @@ MetricFamily<Counter>& Registry::counter(
 
 Counter& Registry::counter(std::string name, std::string help)
 {
-    return counter(std::move(name), {}, std::move(help)).labels({});
+    return counter(std::move(name), {}, std::move(help)).labels();
 }
 
 MetricFamily<Gauge>& Registry::gauge(
@@ -440,7 +440,7 @@ MetricFamily<Gauge>& Registry::gauge(
 
 Gauge& Registry::gauge(std::string name, std::string help)
 {
-    return gauge(std::move(name), {}, std::move(help)).labels({});
+    return gauge(std::move(name), {}, std::move(help)).labels();
 }
 
 MetricFamily<Histogram>& Registry::histogram(std::string name, std::vector<std::string> labelNames,
@@ -454,7 +454,7 @@ MetricFamily<Histogram>& Registry::histogram(std::string name, std::vector<std::
 
 Histogram& Registry::histogram(std::string name, std::vector<double> bucketBounds, std::string help)
 {
-    return histogram(std::move(name), {}, std::move(bucketBounds), std::move(help)).labels({});
+    return histogram(std::move(name), {}, std::move(bucketBounds), std::move(help)).labels();
 }
 
 void Registry::registerCollector(std::shared_ptr<Collector> collector)

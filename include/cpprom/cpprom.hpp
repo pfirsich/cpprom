@@ -179,14 +179,10 @@ public:
     }
 
     template <typename... Args>
-    std::enable_if_t<(std::is_convertible_v<Args, std::string> && ...), Metric&> labels(
-        Args&&... args)
+    Metric& labels(Args&&... args)
     {
-        return labels(std::vector<std::string> { std::forward<Args>(args)... });
-    }
-
-    Metric& labels(const LabelValues& labelValues)
-    {
+        std::vector<std::string> labelValues { static_cast<std::string>(
+            std::forward<Args>(args))... };
         auto it = metrics_.find(labelValues);
         if (it == metrics_.end()) {
             it = metrics_.emplace(labelValues, std::make_unique<Metric>(labelValues, descriptor_))
