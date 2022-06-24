@@ -8,7 +8,6 @@
 #include <unordered_map>
 #include <vector>
 
-//#define CPPROM_SINGLE_THREADED
 #ifdef CPPROM_SINGLE_THREADED
 #define CPPROM_MUTEX NullMutex
 #else
