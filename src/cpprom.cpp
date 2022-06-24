@@ -224,6 +224,8 @@ uint64_t Histogram::count() const
 }
 
 namespace detail {
+    // https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels
+
     bool isValidMetricName(std::string_view str)
     {
         // regex: [a-zA-Z_:][a-zA-Z0-9_:]*
@@ -293,6 +295,8 @@ namespace {
 
 std::string serialize(const std::vector<Collector::Family>& families)
 {
+    // https://prometheus.io/docs/instrumenting/exposition_formats/
+    // https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md
     std::string str;
     str.reserve(4096);
     for (const auto& family : families) {
