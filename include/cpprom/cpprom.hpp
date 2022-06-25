@@ -8,12 +8,6 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef CPPROM_SINGLE_THREADED
-#define CPPROM_MUTEX NullMutex
-#else
-#define CPPROM_MUTEX std::mutex
-#endif
-
 namespace cpprom {
 namespace detail {
     // Just to disable moving and copying
@@ -123,6 +117,12 @@ private:
     std::atomic<double> sum_ { 0.0 };
     std::vector<Bucket> buckets_;
 };
+
+#ifdef CPPROM_SINGLE_THREADED
+#define CPPROM_MUTEX detail::NullMutex
+#else
+#define CPPROM_MUTEX std::mutex
+#endif
 
 namespace detail {
     struct NullMutex {
