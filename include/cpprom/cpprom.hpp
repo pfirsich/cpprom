@@ -9,6 +9,8 @@
 #include <vector>
 
 namespace cpprom {
+double now();
+
 namespace detail {
     // Just to disable moving and copying
     struct HandleBase {

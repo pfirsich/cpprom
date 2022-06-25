@@ -28,17 +28,17 @@ bool isDigit(char ch)
 {
     return ch >= '0' && ch <= '9';
 }
+}
 
-template <typename Unit = std::chrono::seconds>
+namespace cpprom {
+
 double now()
 {
+    using Unit = std::chrono::seconds;
     return std::chrono::duration_cast<std::chrono::duration<double, typename Unit::period>>(
         std::chrono::high_resolution_clock::now().time_since_epoch())
         .count();
 }
-}
-
-namespace cpprom {
 
 namespace {
     void atomicAdd(std::atomic<double>& value, double delta)
