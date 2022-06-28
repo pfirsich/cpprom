@@ -18,9 +18,11 @@ cpprom_dep = declare_dependency(
   include_directories : cpprom_inc,
 )
 
-executable('overview', 'examples/overview.cpp', dependencies : cpprom_dep)
-executable('helpers', 'examples/helpers.cpp', dependencies : cpprom_dep)
+if not meson.is_subproject()
+  executable('overview', 'examples/overview.cpp', dependencies : cpprom_dep)
+  executable('helpers', 'examples/helpers.cpp', dependencies : cpprom_dep)
 
-if host_machine.system() == 'linux'
-  executable('server', 'examples/server.cpp', dependencies : cpprom_dep)
+  if host_machine.system() == 'linux'
+    executable('server', 'examples/server.cpp', dependencies : cpprom_dep)
+  endif
 endif
